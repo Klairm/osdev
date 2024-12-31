@@ -1,8 +1,0 @@
-
-
-
-run:
-qemu-system-i386 -d cpu -D log -kernel kernel.elf 
-
-
-
