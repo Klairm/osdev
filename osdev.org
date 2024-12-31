@@ -138,6 +138,8 @@ To do this, we need to change where the  *esp* register points to, but we can't 
 
 
 **** How the stack pointer works
+
+
 :PROPERTIES:
 :ID:       cd0b55c9-a642-4bf7-bb04-9b7764bceb68
 :END:
@@ -146,6 +148,8 @@ To do this, we need to change where the  *esp* register points to, but we can't 
 #+DOWNLOADED: screenshot @ 2024-12-31 01:51:53
 [[file:OS_Development_quick_notes/2024-12-31_01-51-53_screenshot.png]]
 
+
+[fn:1] https://excalidraw.com/#json=oV1iOTDce_1U9P0qcz8Kq,_89CUPrnoM7dZX3rNo0jxg
 
 *IMPORTANT NOTE*: While in the drawing the values in the stack "dissapear" from the stack when reading them with *pop*, in reality when you use pop the stack pointer is modified, but the data in the stack is *NOT* removed, it will still be there.
 
