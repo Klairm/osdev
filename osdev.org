@@ -1,0 +1,190 @@
+* OS Development quick notes
+Quick notes I'll take while reading *The little book about OS Dev*.
+
+** Resources used
+
+- The little book about os dev
+- Makigas: construyendo un sistema operativo (youtube)
+- wiki.osdev.org
+- Andreas Kling code tour videos
+ 
+
+
+** Basics
+
+*** Booting
+:PROPERTIES:
+:ID:       295deb09-85a5-4570-baf5-f69f89448536
+:END:
+
+
+#+DOWNLOADED: screenshot @ 2024-12-27 23:45:01
+[[file:OS_Development_quick_notes/2024-12-27_23-45-01_screenshot.png]]
+
+
+When the computer boots up, first it loads the *POST* to check that all the hardware is healthy and able to work, if it fails, normally is when the "beeps" from the speaker gives information about what could be failing. After this, it starts the BIOS ( or on modern days, UEFI), this is basically the firmware, a program that (normally) is located on a ROM in the motherboard responsible for initializing devices such as memory, searches for bootable devices (hard disk, dvd, ...) and then it passes the control to the bootloader, the bootloader is responsible for loading the actual operating system.
+
+**** BIOS
+
+On BIOS firmwares, it loads the bootloader from the first sector in the  [[https://wiki.osdev.org/MBR_(x86)][MBR]] (Master Boot Record) of a bootable device
+
+
+**** UEFI
+
+On UEFI firmwares, the bootloader is loaded  from the *EFI* partition (EFI System Partition).
+
+
+A bootloader is a lowlevel complex program, while I could create one from scratch I for now will prefer to use a standard bootloader such as GRUB
+
+
+
+
+** Loader
+:PROPERTIES:
+:ID:       7f584075-a0b8-4576-abc0-c3bfffd83503
+:END:
+
+The first "OS" example that the book shows to compile is a simple one that simply will load =0xCAFEBABE= into register *eax*.
+
+To do this, it writes assembly code (we can't use C without a stack set up)
+
+#+begin_src asm
+	global loader 		; entry symbol for the program to load
+	; constants definitions
+	MAGIC_NUMBER equ 0x1BADB002  ; THis is the required header parameters used for the multiboot specification
+	FLAGS equ 0x0
+	CHECKSUM equ -MAGIC_NUMBER
+
+	section .text:
+	align 4 		; align variables into memory locations that are divisible by 4, this is done for perfomance and something else that I should research lol
+
+	; variable definitions
+	dd MAGIC_NUMBER
+	dd FLAGS
+	dd CHECKSUM
+
+
+
+loader:
+	mov eax, 0xCAFEBABE
+	
+.loop:
+	jmp .loop
+	
+#+end_src
+
+In this assembly code we just define the correct [[https://www.gnu.org/software/grub/manual/multiboot/multiboot.html#Header-layout][header]] so it can be used by the standard multiboot specification.
+
+
+This is then compiled into a 32bit [[https://es.wikipedia.org/wiki/Executable_and_Linkable_Format][ELF]] object file
+
+#+begin_example
+nasm -f elf32 loader.s
+#+end_example
+
+And finally linked to have an executable file.
+
+#+begin_src ld
+ENTRY(loader) /* the name of the entry label */
+SECTIONS {
+. = 0x00100000; /* the code should be loaded at 1 MB */
+.text ALIGN (0x1000) : /* align at 4 KB */
+{
+*(.text) /* all text sections from all files */
+}
+.rodata ALIGN (0x1000) : /* align at 4 KB */
+{
+*(.rodata*) /* all read-only data sections from all files */
+}
+.data ALIGN (0x1000) : /* align at 4 KB */
+{
+*(.data) /* all data sections from all files */
+}
+.bss ALIGN (0x1000) : /* align at 4 KB */
+{
+*(COMMON) /* all COMMON sections from all files */
+*(.bss) /* all bss sections from all files */
+}
+}
+#+end_src
+
+
+THen we link the object file compiled before with the link script so we can generate an executable.
+
+#+begin_example
+ld -T link.ld -melf_i386 loader.o -o kernel.elf
+#+end_example
+
+Now I have an executable elf file, *kernel.elf*, this is the kernel to be loaded, we need a bootloader to execute this, in the book they show how to make an ISO that GRUB can boot, that's what I did to test, however, Andreas Kling, author of SerenityOS, showed how to make QEMU work as it's own bootloader, by passing the =-kernel= parameter in the CLI, that saved me some time, I won't need to create an ISO each time I want to test the OS.
+
+#+begin_example
+qemu-system-i386 -d cpu -kernel kernel.elf
+#+end_example
+
+The =-d= option just indicates what I will want to show in the debug logs, with indicating cpu I can see a list of the registers.
+
+So after booting, I can se that the *eax* register is correctly set to *0xBADC0FFE*
+
+
+#+DOWNLOADED: screenshot @ 2024-12-29 13:34:50
+[[file:OS_Development_quick_notes/2024-12-29_13-34-50_screenshot.png]]
+
+
+*** Getting to C
+
+We don't want to use assembly all the time unless you have some kind of kink, so we will set up the correct enviroment to use C instead, for this we need to set up a memory *stack* which C will use.
+
+To do this, we need to change where the  *esp* register points to, but we can't just randomly use any address (we could, but it's a risk), what we can do is to reserve some memory space by declaring data in the .bss section of our ELF file (If compiling to an ELF, in other way I guess you would need to do some hacky thing in the loader logic?)
+
+
+**** How the stack pointer works
+:PROPERTIES:
+:ID:       cd0b55c9-a642-4bf7-bb04-9b7764bceb68
+:END:
+
+
+#+DOWNLOADED: screenshot @ 2024-12-31 01:51:53
+[[file:OS_Development_quick_notes/2024-12-31_01-51-53_screenshot.png]]
+
+
+*IMPORTANT NOTE*: While in the drawing the values in the stack "dissapear" from the stack when reading them with *pop*, in reality when you use pop the stack pointer is modified, but the data in the stack is *NOT* removed, it will still be there.
+
+
+Example given by allison on the osdev discord guild:
+#+DOWNLOADED: screenshot @ 2024-12-31 14:30:10
+[[file:OS_Development_quick_notes/2024-12-31_14-30-10_screenshot.png]]
+
+
+
+
+
+
+
+
+
+
+
+
+* Assembly notes
+I know some basic assembly, so I will take notes of those instructions, directives or whatever I dont know so I can remember it correctly
+
+** DD
+
+The *dd*  (defined double world, a word normally is 2 Bytes, so double is 4) is used to define a variable as a 4Byte value.
+
+** EQU 
+
+**equ*  directive is used to define constant values, for example
+
+#+begin_src asm
+
+ZERO equ 0x0 ; will declare ZERO as 0x0
+
+#+end_src
+
+
+
+
+
+
+
