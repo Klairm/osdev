@@ -136,9 +136,100 @@ We don't want to use assembly all the time unless you have some kind of kink, so
 
 To do this, we need to change where the  *esp* register points to, but we can't just randomly use any address (we could, but it's a risk), what we can do is to reserve some memory space by declaring data in the .bss section of our ELF file (If compiling to an ELF, in other way I guess you would need to do some hacky thing in the loader logic?)
 
+To set up a stack, we need simply need to reserve uniniatilaized space on memory, then make SP point to the end of that space ( the stack grows downwards, so it should start at a high address), to do this, the book says to create the constant in the loader, then reserve that size in in the .bss section ( a section used to declare uninitalized variables, (I think?) ) with the pseudo-instruction *resb* which will reserve the number of bytes passed as argument, so we then we can just make the stack pointer register set to the tag used in the .bss section + the stack size constant defined.
+
+#+begin_src asm
+  STACK_SIZE equ 4096
+
+  loader:
+      mov esp, kernel_stack + STACK_SIZE
+
+  section .bss
+
+	  align 4
+	  kernel_stack:
+	  resb STACK_SIZE
+
+
+#+end_src
+
+
+Now that we have a stack we can use C code in our kernel, to do this we need to be able to call C functions from assembly, (I guess it could be any compiled language? Just the process would be different in the assembly part I guess)
+
+The process to call external functions is by using the *extern* assembly keyword and indicate the name of the function we are going to use, however firstly we need to link the object output of our C kernel with the object output of our assembly loader, this is already expected in the linker script done before but now we need to add the C object output into our *ld* command, and since C compilation command is also needed, it's convienent to have a Makefile as suggested by the book.
+And after indicating this, we can just use the instruction *call*, and parameters should be pushed into the stack before, the book uses the /cdecl/ calling convention, why? No idea, but after reading Wikipedia, the =cdecl= calling convention uses RTL right to left order, so the last parameter will be the first argument for the function, integer values and memory addresses will be put into *EAX* register, what about characters and strings? No idea for now, but I supposse since characters are just numbers it will be passed into the EAX register too? Floating values are other story that I dont wanna know right now :D
+
+So a simple example would be:
+
+hehe.c:
+#+begin_src c
+
+    int sum(int n1,int n2){
+      return n1 + n2;
+    }
+#+end_src
+
+
+loader.s
+#+begin_src asm
+extern sum
+;...
+push 1
+push 2
+call sum
+
+#+end_src
+
+
+This would be like executing in C
+#+begin_src c
+  sum(2,1);
+
+#+end_src
+
+And then in the EAX register we can see the number 00000003
+
+**** THE MAKEFILE 
+#+begin_src makefile
+LDFLAGS = -T link.ld -melf_i386
+OBJS = loader.o kmain.o
+AS = nasm
+ASFLAGS = -f elf32
+CC = gcc
+CFLAGS = -m32 -nostdlib -nostdinc -fno-builtin -fno-stack-protector -nostartfiles -nodefaultlibs -Wall -Wextra -Werror
+SRC = src/*.c
+
+all: kernel.elf
+
+build: loader
+	$(CC) $(CFLAGS) -c $(SRC)  -o kmain.o
+
+clean:
+	rm -rf *.o *.elf
+$(OBJS): build
+
+loader: loader.s
+	$(AS) $(ASFLAGS) loader.s
+
+kernel.elf: $(OBJS)
+	ld $(LDFLAGS) $(OBJS) -o kernel.elf
+
+run:
+	qemu-system-i386 -d cpu -D log -kernel kernel.elf 
+
+
+#+end_src
+
+It's probably not the best Makefile ever done but make is one of those thing I learn when I need to use it and then just forget about it xD
+
+
+
+
+
 
 **** How the stack pointer works
 
+ Sidenotes created because I had a bad understanding of how the stack pointer works since years ago xD
 
 :PROPERTIES:
 :ID:       cd0b55c9-a642-4bf7-bb04-9b7764bceb68
@@ -158,7 +249,11 @@ Example given by allison on the osdev discord guild:
 [[file:OS_Development_quick_notes/2024-12-31_14-30-10_screenshot.png]]
 
 
+*** Drivers
 
+*I WANT A HELLO WORLD AND I WANT IT RIGHT NOW!*
+
+The first driver we are going to write is one to print text into the screen, since a driver is a program that acts as a layer  to communicate hardware and kernel, I will put this part of writing to screen in this section.
 
 
 
