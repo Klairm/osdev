@@ -26,6 +26,7 @@ loader:
     push dword 2
     call sum
 
+    mov word [0x000B8000], 0x410F
 .loop:
     jmp .loop
 
