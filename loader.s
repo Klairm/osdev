@@ -1,5 +1,5 @@
 global loader          ; Entry point for the loader
-extern sum             
+extern main             
 
 ; Constants
 MAGIC_NUMBER      equ 0x1BADB002
@@ -21,10 +21,7 @@ loader:
     ; Set up the stack
     mov esp, kernel_stack + KERNEL_STACK_SIZE
 
-
-    push dword 2
-    push dword 2
-    call sum
+    call main
 
     mov word [0x000B8000], 0x410F
 .loop:
